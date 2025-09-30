@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Student Folder Maker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gu-blue:#06274f;
+      --gu-blue-30:#b4beca;
+      --gu-blue-50:#8293a7;
+      --gu-blue-70:#506783;
+      --river-blue:#5e8ab4;
+      --river-blue-30:#cedbe8;
+      --river-blue-50:#aec4d9;
+      --river-blue-70:#8eadca;
+      --white:#ffffff;
+      --bg:var(--river-blue-30);
+      --panel:var(--white);
+      --ink:var(--gu-blue);
+      --muted:var(--gu-blue-50);
+      --accent:var(--river-blue);
+      --ok:var(--river-blue);
+      --warn:var(--gu-blue-50);
+      --err:var(--gu-blue-70);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto; background:linear-gradient(135deg,var(--river-blue-30),var(--river-blue-50) 45%,var(--gu-blue-30)); color:var(--ink)}
+    .wrap{max-width:980px; margin:32px auto; padding:0 16px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,255,255,0.86)); border:1px solid var(--river-blue-70); border-radius:18px; padding:22px; box-shadow:0 12px 24px rgba(6,39,79,0.08)}
+    h1{font-size:28px; margin:0 0 10px}
+    p.lead{margin:0 0 18px; color:var(--river-blue-70)}
+    label{display:block; font-weight:600; margin:14px 0 6px}
+    input[type="text"], select { width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--river-blue-70); background:var(--white); color:var(--ink); box-shadow:0 1px 2px rgba(6,39,79,0.08)}
+    input::placeholder{color:var(--river-blue-70)}
+    input[type="file"] { width:100%; padding:12px; border-radius:12px; border:1px dashed var(--river-blue-70); background:var(--river-blue-30); color:var(--ink)}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+    .btn{display:inline-flex; align-items:center; gap:10px; padding:12px 16px; border-radius:12px; border:1px solid var(--gu-blue); background:var(--gu-blue); color:var(--white); font-weight:600; cursor:pointer; transition:background .2s ease, transform .2s ease}
+    .btn:hover{background:var(--river-blue); border-color:var(--river-blue); transform:translateY(-1px)}
+    .btn:disabled{opacity:.6; cursor:not-allowed; transform:none}
+    .pill{display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--river-blue-70); background:var(--river-blue-30); font-size:12px; color:var(--ink)}
+    .hint{font-size:12px; color:var(--muted)}
+    .log{margin-top:14px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:var(--river-blue-30); border:1px solid var(--river-blue-70); border-radius:12px; padding:12px; max-height:200px; overflow:auto; white-space:pre-wrap; color:var(--ink)}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+    footer{opacity:.7; font-size:12px; margin-top:18px}
+  </style>
+  <!-- Dependencies: all client-side, no backend -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Student Folder Maker</h1>
+      <p class="lead">Upload a CSV (<em>LastName, FirstName</em>) and your template .docx files. Pick a country. Get a ZIP with the required folder tree and renamed files.</p>
+
+      <div class="row">
+        <div>
+          <label for="country">Country preset</label>
+          <select id="country">
+            <option value="italy" selected>Italy</option>
+            <option value="spain">Spain</option>
+          </select>
+        </div>
+        <div>
+          <label for="mainFolder">Main folder name</label>
+          <input id="mainFolder" type="text" placeholder="Italy_GU" value="Italy_GU" />
+          <div class="hint">Auto-updates when you switch country; you can override.</div>
+        </div>
+      </div>
+
+      <label for="csv">Student list CSV</label>
+      <input id="csv" type="file" accept=".csv,text/csv" />
+      <div class="hint">CSV headers are optional. Expected columns: <code>LastName,FirstName</code></div>
+
+      <label for="templates">Template files (.docx, .pdf, etc.)</label>
+      <input id="templates" type="file" multiple />
+      <div class="hint">Upload your templates. They will be copied and renamed for each student.</div>
+
+      <div class="row">
+        <div>
+          <label for="zipname">ZIP filename</label>
+          <input id="zipname" type="text" placeholder="Italy_GU_YYYY-MM-DD.zip" />
+        </div>
+        <div>
+          <label for="prefixRules">Optional prefix rules</label>
+          <input id="prefixRules" type="text" placeholder="SF_IT_STUDY=1;Mailing_Declaration=4" />
+          <div class="hint">Map substrings to numeric prefixes; e.g. <code>1. LAST, First_SF_IT_STUDY.docx</code></div>
+        </div>
+      </div>
+
+      <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap">
+        <button id="go" class="btn">Generate ZIP</button>
+      </div>
+
+      <div id="log" class="log" aria-live="polite"></div>
+
+      <footer>
+        <div>Privacy note: All processing happens in your browser. No files are uploaded.</div>
+      </footer>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+  const logBox = $("log");
+  const countrySel = $("country");
+  const mainFolder = $("mainFolder");
+  const csvInput = $("csv");
+  const templates = $("templates");
+  const zipname = $("zipname");
+  const prefixRules = $("prefixRules");
+  const goBtn = $("go");
+
+  const presets = {
+    italy: { main:"Italy_GU", rules:"SF_IT_STUDY=1;Mailing_Declaration=4" },
+    spain: { main:"Spain_GU", rules:"SF_ES_STUDY=1;Mailing_Declaration=4" }
+  };
+
+  countrySel.addEventListener('change', ()=>{
+    const p = presets[countrySel.value];
+    if(!mainFolder.dataset.userEdited) mainFolder.value = p.main;
+    if(!prefixRules.dataset.userEdited) prefixRules.value = p.rules;
+    suggestZip();
+  });
+  mainFolder.addEventListener('input', ()=> mainFolder.dataset.userEdited = true);
+  prefixRules.addEventListener('input', ()=> prefixRules.dataset.userEdited = true);
+
+  function suggestZip(){
+    const d = new Date();
+    const iso = d.toISOString().slice(0,10);
+    if(!zipname.dataset.userEdited){
+      zipname.value = `${mainFolder.value || presets[countrySel.value].main}_${iso}.zip`;
+    }
+  }
+  zipname.addEventListener('input', ()=> zipname.dataset.userEdited = true);
+  suggestZip();
+
+  function log(line, cls=""){ const el=document.createElement('div'); if(cls) el.className=cls; el.textContent=line; logBox.appendChild(el); logBox.scrollTop=logBox.scrollHeight; }
+  function clearLog(){ logBox.textContent=""; }
+
+  function parseRules(s){
+    const map = {};
+    (s||"").split(';').map(x=>x.trim()).filter(Boolean).forEach(pair=>{
+      const [k,v] = pair.split('=').map(y=>y?.trim());
+      if(k && v && /^\d+$/.test(v)) map[k]=v;
+    });
+    return map;
+  }
+
+  function cap1(str){ str = (str||"").trim().toLowerCase(); return str ? str[0].toUpperCase()+str.slice(1) : ""; }
+  function upper(str){ return (str||"").trim().toUpperCase(); }
+  function safeName(str){ return (str||"").replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim(); }
+
+  function pickPrefix(fileName, rulesMap){
+    const name = fileName.toString();
+    for(const k of Object.keys(rulesMap)){
+      if(name.includes(k)) return rulesMap[k];
+    }
+    return null; // no rule matched
+  }
+
+  async function filesToArray(fileList){
+    return Array.from(fileList || []);
+  }
+
+  function parseCSV(file){
+    return new Promise((resolve,reject)=>{
+      const fallbackNoHeader = ()=>{
+        Papa.parse(file, {
+          header: false,
+          skipEmptyLines: 'greedy',
+          complete: (res)=>{
+            const rows = res.data.map(r=>({ lastname:r[0], firstname:r[1] }));
+            resolve(rows);
+          },
+          error: reject
+        });
+      };
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: 'greedy',
+        transformHeader: h => h.trim().toLowerCase(),
+        complete: (res)=>{
+          const rows = res.data || [];
+          if(!rows.length){ fallbackNoHeader(); return; }
+
+          const normalized = rows.map(r=>({
+            lastname: r.lastname ?? r.last ?? r.surname ?? r["last name"],
+            firstname: r.firstname ?? r.first ?? r["first name"]
+          }));
+
+          const hasUsable = normalized.some(r=>{
+            const last = (r.lastname||"").trim();
+            const first = (r.firstname||"").trim();
+            return last || first;
+          });
+
+          if(hasUsable){
+            resolve(normalized);
+          } else {
+            fallbackNoHeader();
+          }
+        },
+        error: reject
+      });
+    });
+  }
+
+  goBtn.addEventListener('click', async ()=>{
+    clearLog();
+    try{
+      const country = countrySel.value;
+      const main = safeName(mainFolder.value || presets[country].main);
+      if(!main){ log('Main folder name is required','err'); return; }
+
+      const csvFile = csvInput.files?.[0];
+      if(!csvFile){ log('Please attach a CSV','err'); return; }
+      const tmplFiles = await filesToArray(templates.files);
+      if(!tmplFiles.length){ log('Please attach at least one template file','err'); return; }
+
+      log(`Parsing CSV…`);
+      let rows = (await parseCSV(csvFile)).filter(r=> (r.lastname||'').trim() && (r.firstname||'').trim());
+      if(!rows.length){ log('CSV has no usable rows (need LastName, FirstName).','err'); return; }
+
+      const rulesMap = parseRules(prefixRules.value);
+      if(Object.keys(rulesMap).length){ log(`Using prefix rules: ${JSON.stringify(rulesMap)}`, 'hint'); }
+
+      const zip = new JSZip();
+      const root = zip.folder(main);
+
+      const seen = new Set();
+      for(const r of rows){
+        const last = upper(r.lastname);
+        const first = cap1(r.firstname);
+        const folderName = safeName(`${last}, ${first}`);
+
+        if(seen.has(folderName)){
+          log(`Duplicate name detected: ${folderName} — adding numeric suffix`, 'warn');
+        }
+        let unique = folderName, i=2;
+        while(seen.has(unique)) unique = `${folderName} (${i++})`;
+        seen.add(unique);
+
+        const studentFolder = root.folder(unique);
+        log(`Creating ${main}/${unique}`,'ok');
+
+        for(const f of tmplFiles){
+          const arrBuf = await f.arrayBuffer();
+          const base = f.name; // original file name
+          const matched = pickPrefix(base, rulesMap);
+          const prefix = matched ? `${matched}. ` : '';
+          const renamed = `${prefix}${unique}_${base}`;
+          studentFolder.file(renamed, arrBuf);
+        }
+      }
+
+      const outName = zipname.value?.trim() || `${main}_${new Date().toISOString().slice(0,10)}.zip`;
+      log('Packaging ZIP…');
+      const blob = await zip.generateAsync({type:'blob'});
+      saveAs(blob, outName);
+      log('Done. Your download should start now.','ok');
+    } catch(err){
+      console.error(err);
+      log(String(err), 'err');
+    }
+  });
+})();
+</script>
+</body>
+</html>
